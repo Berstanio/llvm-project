@@ -12367,7 +12367,35 @@ ARMTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     return EmitLowered__chkstk(MI, BB);
   case ARM::WIN__DBZCHK:
     return EmitLowered__dbzchk(MI, BB);
+  case TargetOpcode::STATEPOINT:
+    // STATEPOINT is a pseudo instruction which has no implicit defs/uses
+    // while bl call instruction (where statepoint will be lowered at the end)
+    // has implicit def. This def is early-clobber as it will be set at
+    // the moment of the call and earlier than any use is read.
+    // Add this implicit dead def here as a workaround.
+    MI.addOperand(*MI.getMF(),
+                  MachineOperand::CreateReg(
+                      ARM::LR, /*isDef*/ true,
+                      /*isImp*/ true, /*isKill*/ false, /*isDead*/ true,
+                      /*isUndef*/ false, /*isEarlyClobber*/ true));
+    [[fallthrough]];
+  case TargetOpcode::STACKMAP:
+  case TargetOpcode::PATCHPOINT:
+    // thumb1 mode is not implemented for now, not a structural limitation
+    if (Subtarget->isThumb1Only())
+      report_fatal_error("STACKMAP, PATCHPOINT and STATEPOINT are not "
+                         "supported in Thumb1 mode",
+                         /*GenCrashDiag=*/false);
+    return emitPatchPoint(MI, BB);
   }
+}
+
+const MCPhysReg *ARMTargetLowering::getScratchRegisters(CallingConv::ID) const {
+  // LR is a callee-save register, but we must treat it as clobbered by any call
+  // site. Hence we include LR in the scratch registers, which are in turn added
+  // as implicit-defs for stackmaps and patchpoints.
+  static const MCPhysReg ScratchRegs[] = {ARM::R12, ARM::LR, 0};
+  return ScratchRegs;
 }
 
 /// Attaches vregs to MEMCPY that it will use as scratch registers

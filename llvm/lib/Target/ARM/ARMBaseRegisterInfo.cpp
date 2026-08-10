@@ -873,6 +873,16 @@ ARMBaseRegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   assert(!MI.isDebugValue() && "DBG_VALUEs should be handled in target-independent code");
 
+  // Special handling of dbg_value, stackmap patchpoint statepoint instructions.
+  if (MI.getOpcode() == TargetOpcode::STACKMAP ||
+      MI.getOpcode() == TargetOpcode::PATCHPOINT ||
+      MI.getOpcode() == TargetOpcode::STATEPOINT) {
+    Offset += MI.getOperand(FIOperandNum + 1).getImm();
+    MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false /*isDef*/);
+    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+    return false;
+  }
+
   // Modify MI as necessary to handle as much of 'Offset' as possible
   bool Done = false;
   if (!AFI->isThumbFunction())

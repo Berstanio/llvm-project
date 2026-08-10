@@ -122,6 +122,9 @@ public:
   // Return whether the target has an explicit NOP encoding.
   bool hasNOP() const;
 
+  // Return the size in bytes of the NOP returned by getNop().
+  unsigned getNopBytes() const;
+
   // Return the non-pre/post incrementing version of 'Opc'. Return 0
   // if there is not such an opcode.
   virtual unsigned getUnindexedOpcode(unsigned Opc) const = 0;
@@ -192,6 +195,14 @@ public:
   /// GetInstSize - Returns the size of the specified MachineInstr.
   ///
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
+
+  /// Return true if getInstSizeInBytes(MI) is only an upper bound: the
+  /// emitted code may be smaller, though still a multiple of the current
+  /// instruction size.
+  static bool hasUpperBoundSizeEstimate(const MachineInstr &MI) {
+    return MI.isInlineAsm() || MI.getOpcode() == TargetOpcode::STACKMAP ||
+           MI.getOpcode() == TargetOpcode::STATEPOINT;
+  }
 
   Register isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
@@ -689,6 +700,14 @@ static inline bool isIndirectCall(const MachineInstr &MI) {
   case ARM::tTAILJMPdND:
   case ARM::tSVC:
   case ARM::tTPsoft:
+    assert(MI.isCall(MachineInstr::IgnoreBundle));
+    return false;
+  // PATCHPOINT/STATEPOINT can lower to indirect calls in AsmPrinter,
+  // but we don't know yet here. Assertions need to live in AsmPrinter.
+  // STACKMAP cannot lower to a call, but its still marked as one
+  case TargetOpcode::STACKMAP:
+  case TargetOpcode::PATCHPOINT:
+  case TargetOpcode::STATEPOINT:
     assert(MI.isCall(MachineInstr::IgnoreBundle));
     return false;
   }

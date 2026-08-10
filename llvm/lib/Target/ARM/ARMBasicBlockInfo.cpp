@@ -50,9 +50,9 @@ void ARMBasicBlockUtils::computeBlockSize(MachineBasicBlock *MBB) {
 
   for (MachineInstr &I : *MBB) {
     BBI.Size += TII->getInstSizeInBytes(I);
-    // For inline asm, getInstSizeInBytes returns a conservative estimate.
-    // The actual size may be smaller, but still a multiple of the instr size.
-    if (I.isInlineAsm())
+    // Some instructions only have an upper bound on their size, the actual
+    // size may be smaller, but still a multiple of the instr size.
+    if (ARMBaseInstrInfo::hasUpperBoundSizeEstimate(I))
       BBI.Unalign = isThumb ? 1 : 2;
     // Also consider instructions that may be shrunk later.
     else if (isThumb && mayOptimizeThumb2Instruction(&I))

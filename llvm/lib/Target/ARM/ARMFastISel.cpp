@@ -181,6 +181,10 @@ class ARMFastISel final : public FastISel {
                              const LoadInst *LI) override;
     bool fastLowerArguments() override;
 
+    void addDefaultOperands(const MachineInstrBuilder &MIB) override {
+      AddOptionalDefs(MIB);
+    }
+
 #include "ARMGenFastISel.inc"
 
     // Instruction selection routines.

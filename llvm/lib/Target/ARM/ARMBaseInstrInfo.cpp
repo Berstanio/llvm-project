@@ -42,6 +42,7 @@
 #include "llvm/CodeGen/MultiHazardRecognizer.h"
 #include "llvm/CodeGen/ScoreboardHazardRecognizer.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSchedule.h"
@@ -641,6 +642,28 @@ unsigned ARMBaseInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
     if (!MF->getInfo<ARMFunctionInfo>()->isThumbFunction())
       Size = alignTo(Size, 4);
     return Size;
+  }
+  case TargetOpcode::STACKMAP: {
+    // The upper bound for a stackmap intrinsic is the full length of its shadow
+    unsigned NumBytes = StackMapOpers(&MI).getNumPatchBytes();
+    assert(NumBytes % getNopBytes() == 0 &&
+           "Invalid number of NOP bytes requested!");
+    return NumBytes;
+  }
+  case TargetOpcode::PATCHPOINT: {
+    // The size of the patchpoint intrinsic is the number of bytes requested
+    unsigned NumBytes = PatchPointOpers(&MI).getNumPatchBytes();
+    assert(NumBytes % getNopBytes() == 0 &&
+           "Invalid number of NOP bytes requested!");
+    return NumBytes;
+  }
+  case TargetOpcode::STATEPOINT: {
+    unsigned NumBytes = StatepointOpers(&MI).getNumPatchBytes();
+    assert(NumBytes % getNopBytes() == 0 &&
+           "Invalid number of NOP bytes requested!");
+    // No patch bytes means a normal call inst is emitted, which is a 4 byte
+    // BL or BLX in ARM mode, and 2 byte BLX or 4 byte BL in thumb. We round up.
+    return std::max(NumBytes, 4U);
   }
   }
 }
@@ -5256,6 +5279,10 @@ void ARMBaseInstrInfo::breakPartialRegDependency(
 
 bool ARMBaseInstrInfo::hasNOP() const {
   return Subtarget.hasFeature(ARM::HasV6KOps);
+}
+
+unsigned ARMBaseInstrInfo::getNopBytes() const {
+  return get(getNop().getOpcode()).getSize();
 }
 
 bool ARMBaseInstrInfo::isSwiftFastImmShift(const MachineInstr *MI) const {

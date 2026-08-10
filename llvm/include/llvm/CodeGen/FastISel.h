@@ -386,6 +386,11 @@ protected:
   virtual Register fastEmit_f(MVT VT, MVT RetVT, unsigned Opcode,
                               const ConstantFP *FPImm);
 
+  /// This method is called by target-independent code to append the operands
+  /// that only the target can supply to an instruction built directly from its
+  /// opcode.
+  virtual void addDefaultOperands(const MachineInstrBuilder & /*MIB*/) {}
+
   /// Emit a MachineInstr with no operands and a result register in the
   /// given register class.
   Register fastEmitInst_(unsigned MachineInstOpcode,

@@ -289,12 +289,12 @@ def int_arm_stlex : Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_anyptr_ty]>;
 def int_arm_clrex : Intrinsic<[]>;
 
 def int_arm_strexd : Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty,
-    llvm_ptr_ty]>;
-def int_arm_ldrexd : Intrinsic<[llvm_i32_ty, llvm_i32_ty], [llvm_ptr_ty]>;
+    llvm_anyptr_ty]>;
+def int_arm_ldrexd : Intrinsic<[llvm_i32_ty, llvm_i32_ty], [llvm_anyptr_ty]>;
 
 def int_arm_stlexd : Intrinsic<[llvm_i32_ty],
-                               [llvm_i32_ty, llvm_i32_ty, llvm_ptr_ty]>;
-def int_arm_ldaexd : Intrinsic<[llvm_i32_ty, llvm_i32_ty], [llvm_ptr_ty]>;
+                               [llvm_i32_ty, llvm_i32_ty, llvm_anyptr_ty]>;
+def int_arm_ldaexd : Intrinsic<[llvm_i32_ty, llvm_i32_ty], [llvm_anyptr_ty]>;
 
 //===----------------------------------------------------------------------===//
 // Data barrier instructions

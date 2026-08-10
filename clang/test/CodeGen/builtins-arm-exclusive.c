@@ -30,12 +30,12 @@ int test_ldrex(char *addr, long long *addr64, float *addrfloat) {
 // CHECK-ARM64: trunc i64 [[INTRES]] to i32
 
   sum += __builtin_arm_ldrex((long long *)addr);
-// CHECK: call { i32, i32 } @llvm.arm.ldrexd(ptr %addr)
+// CHECK: call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %addr)
 
 // CHECK-ARM64: call i64 @llvm.aarch64.ldxr.p0(ptr elementtype(i64) %addr)
 
   sum += __builtin_arm_ldrex(addr64);
-// CHECK: call { i32, i32 } @llvm.arm.ldrexd(ptr %addr64)
+// CHECK: call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %addr64)
 
 // CHECK-ARM64: call i64 @llvm.aarch64.ldxr.p0(ptr elementtype(i64) %addr64)
 
@@ -47,7 +47,7 @@ int test_ldrex(char *addr, long long *addr64, float *addrfloat) {
 // CHECK-ARM64: bitcast i32 [[TRUNCRES]] to float
 
   sum += __builtin_arm_ldrex((double *)addr);
-// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldrexd(ptr %addr)
+// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %addr)
 // CHECK: [[RESHI:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 1
 // CHECK: [[RESLO:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 0
 // CHECK: [[RESHI64:%.*]] = zext i32 [[RESHI]] to i64
@@ -99,12 +99,12 @@ int test_ldaex(char *addr, long long *addr64, float *addrfloat) {
 // CHECK-ARM64: trunc i64 [[INTRES]] to i32
 
   sum += __builtin_arm_ldaex((long long *)addr);
-// CHECK: call { i32, i32 } @llvm.arm.ldaexd(ptr %addr)
+// CHECK: call { i32, i32 } @llvm.arm.ldaexd.p0(ptr %addr)
 
 // CHECK-ARM64: call i64 @llvm.aarch64.ldaxr.p0(ptr elementtype(i64) %addr)
 
   sum += __builtin_arm_ldaex(addr64);
-// CHECK: call { i32, i32 } @llvm.arm.ldaexd(ptr %addr64)
+// CHECK: call { i32, i32 } @llvm.arm.ldaexd.p0(ptr %addr64)
 
 // CHECK-ARM64: call i64 @llvm.aarch64.ldaxr.p0(ptr elementtype(i64) %addr64)
 
@@ -116,7 +116,7 @@ int test_ldaex(char *addr, long long *addr64, float *addrfloat) {
 // CHECK-ARM64: bitcast i32 [[TRUNCRES]] to float
 
   sum += __builtin_arm_ldaex((double *)addr);
-// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldaexd(ptr %addr)
+// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldaexd.p0(ptr %addr)
 // CHECK: [[RESHI:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 1
 // CHECK: [[RESLO:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 0
 // CHECK: [[RESHI64:%.*]] = zext i32 [[RESHI]] to i64
@@ -168,7 +168,7 @@ int test_strex(char *addr) {
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: call i32 @llvm.arm.strexd(i32 [[LO]], i32 [[HI]], ptr %addr)
+// CHECK: call i32 @llvm.arm.strexd.p0(i32 [[LO]], i32 [[HI]], ptr %addr)
 
 // CHECK-ARM64: call i32 @llvm.aarch64.stxr.p0(i64 42, ptr elementtype(i64) %addr)
 
@@ -182,7 +182,7 @@ int test_strex(char *addr) {
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: call i32 @llvm.arm.strexd(i32 [[LO]], i32 [[HI]], ptr %addr)
+// CHECK: call i32 @llvm.arm.strexd.p0(i32 [[LO]], i32 [[HI]], ptr %addr)
 
 // CHECK-ARM64: call i32 @llvm.aarch64.stxr.p0(i64 4614256650576692846, ptr elementtype(i64) %addr)
 
@@ -221,7 +221,7 @@ int test_stlex(char *addr) {
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: call i32 @llvm.arm.stlexd(i32 [[LO]], i32 [[HI]], ptr %addr)
+// CHECK: call i32 @llvm.arm.stlexd.p0(i32 [[LO]], i32 [[HI]], ptr %addr)
 
 // CHECK-ARM64: call i32 @llvm.aarch64.stlxr.p0(i64 42, ptr elementtype(i64) %addr)
 
@@ -235,7 +235,7 @@ int test_stlex(char *addr) {
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: call i32 @llvm.arm.stlexd(i32 [[LO]], i32 [[HI]], ptr %addr)
+// CHECK: call i32 @llvm.arm.stlexd.p0(i32 [[LO]], i32 [[HI]], ptr %addr)
 
 // CHECK-ARM64: call i32 @llvm.aarch64.stlxr.p0(i64 4614256650576692846, ptr elementtype(i64) %addr)
 
@@ -320,13 +320,13 @@ int test_ldrexd(char *addr, long long *addr64, float *addrfloat) {
 // CHECK-LABEL: @test_ldrexd
   int sum = 0;
   sum += __builtin_arm_ldrexd((long long *)addr);
-// CHECK: call { i32, i32 } @llvm.arm.ldrexd(ptr %addr)
+// CHECK: call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %addr)
 
   sum += __builtin_arm_ldrexd(addr64);
-// CHECK: call { i32, i32 } @llvm.arm.ldrexd(ptr %addr64)
+// CHECK: call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %addr64)
 
   sum += __builtin_arm_ldrexd((double *)addr);
-// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldrexd(ptr %addr)
+// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %addr)
 // CHECK: [[RESHI:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 1
 // CHECK: [[RESLO:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 0
 // CHECK: [[RESHI64:%.*]] = zext i32 [[RESHI]] to i64
@@ -345,14 +345,14 @@ int test_strexd(char *addr) {
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: call i32 @llvm.arm.strexd(i32 [[LO]], i32 [[HI]], ptr %addr)
+// CHECK: call i32 @llvm.arm.strexd.p0(i32 [[LO]], i32 [[HI]], ptr %addr)
 
   res |= __builtin_arm_strexd(3.14159, (double *)addr);
 // CHECK: store double 3.141590e+00, ptr [[TMP:%.*]], align 8
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: call i32 @llvm.arm.strexd(i32 [[LO]], i32 [[HI]], ptr %addr)
+// CHECK: call i32 @llvm.arm.strexd.p0(i32 [[LO]], i32 [[HI]], ptr %addr)
 
   return res;
 }

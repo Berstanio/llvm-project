@@ -99,7 +99,7 @@ define i64 @test_atomic_or_i64(ptr %ptr, i64 %orend) {
 ; CHECK: call void @llvm.arm.dmb(i32 11)
 ; CHECK: br label %[[LOOP:.*]]
 ; CHECK: [[LOOP]]:
-; CHECK: [[LOHI:%.*]] = call { i32, i32 } @llvm.arm.ldrexd(ptr %ptr)
+; CHECK: [[LOHI:%.*]] = call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %ptr)
 ; CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 ; CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
 ; CHECK: [[LO64:%.*]] = zext i32 [[LO]] to i64
@@ -110,7 +110,7 @@ define i64 @test_atomic_or_i64(ptr %ptr, i64 %orend) {
 ; CHECK: [[NEWLO:%.*]] = trunc i64 [[NEWVAL]] to i32
 ; CHECK: [[NEWHI_TMP:%.*]] = lshr i64 [[NEWVAL]], 32
 ; CHECK: [[NEWHI:%.*]] = trunc i64 [[NEWHI_TMP]] to i32
-; CHECK: [[TRYAGAIN:%.*]] = call i32 @llvm.arm.strexd(i32 [[NEWLO]], i32 [[NEWHI]], ptr %ptr)
+; CHECK: [[TRYAGAIN:%.*]] = call i32 @llvm.arm.strexd.p0(i32 [[NEWLO]], i32 [[NEWHI]], ptr %ptr)
 ; CHECK: [[TST:%.*]] = icmp ne i32 [[TRYAGAIN]], 0
 ; CHECK: br i1 [[TST]], label %[[LOOP]], label %[[END:.*]]
 ; CHECK: [[END]]:
@@ -343,7 +343,7 @@ define i64 @test_cmpxchg_i64_monotonic_monotonic(ptr %ptr, i64 %desired, i64 %ne
 ; CHECK-NOT: dmb
 ; CHECK: br label %[[LOOP:.*]]
 ; CHECK: [[LOOP]]:
-; CHECK: [[LOHI:%.*]] = call { i32, i32 } @llvm.arm.ldrexd(ptr %ptr)
+; CHECK: [[LOHI:%.*]] = call { i32, i32 } @llvm.arm.ldrexd.p0(ptr %ptr)
 ; CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 ; CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
 ; CHECK: [[LO64:%.*]] = zext i32 [[LO]] to i64
@@ -359,7 +359,7 @@ define i64 @test_cmpxchg_i64_monotonic_monotonic(ptr %ptr, i64 %desired, i64 %ne
 ; CHECK: [[NEWLO:%.*]] = trunc i64 %newval to i32
 ; CHECK: [[NEWHI_TMP:%.*]] = lshr i64 %newval, 32
 ; CHECK: [[NEWHI:%.*]] = trunc i64 [[NEWHI_TMP]] to i32
-; CHECK: [[TRYAGAIN:%.*]] = call i32 @llvm.arm.strexd(i32 [[NEWLO]], i32 [[NEWHI]], ptr %ptr)
+; CHECK: [[TRYAGAIN:%.*]] = call i32 @llvm.arm.strexd.p0(i32 [[NEWLO]], i32 [[NEWHI]], ptr %ptr)
 ; CHECK: [[TST:%.*]] = icmp eq i32 [[TRYAGAIN]], 0
 ; CHECK: br i1 [[TST]], label %[[SUCCESS_BB:.*]], label %[[LOOP]]
 ; CHECK: [[SUCCESS_BB]]:

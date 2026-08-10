@@ -29,7 +29,7 @@ void tset_strex() {
 long long c;
 
 // CHECK-LABEL: @_Z11test_ldrexdv()
-// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldrexd(ptr @c)
+// CHECK: [[STRUCTRES:%.*]] = call { i32, i32 } @llvm.arm.ldrexd.p0(ptr @c)
 // CHECK: [[RESHI:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 1
 // CHECK: [[RESLO:%.*]] = extractvalue { i32, i32 } [[STRUCTRES]], 0
 // CHECK: [[RESHI64:%.*]] = zext i32 [[RESHI]] to i64
@@ -47,7 +47,7 @@ void test_ldrexd() {
 // CHECK: [[LOHI:%.*]] = load { i32, i32 }, ptr [[TMP]]
 // CHECK: [[LO:%.*]] = extractvalue { i32, i32 } [[LOHI]], 0
 // CHECK: [[HI:%.*]] = extractvalue { i32, i32 } [[LOHI]], 1
-// CHECK: %{{.*}} = call i32 @llvm.arm.strexd(i32 [[LO]], i32 [[HI]], ptr @c)
+// CHECK: %{{.*}} = call i32 @llvm.arm.strexd.p0(i32 [[LO]], i32 [[HI]], ptr @c)
 
 void tset_strexd() {
   __builtin_arm_strexd(42, &c);

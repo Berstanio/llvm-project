@@ -9,7 +9,7 @@ __INT64_TYPE__ check__ldrexd(void) {
   return __ldrexd(&i64);
 }
 
-// CHECK-MSVC: @llvm.arm.ldrexd(ptr {{.*}})
+// CHECK-MSVC: @llvm.arm.ldrexd.p0(ptr {{.*}})
 // CHECK-EABI: error: call to undeclared function '__ldrexd'
 
 unsigned int check_MoveFromCoprocessor(void) {

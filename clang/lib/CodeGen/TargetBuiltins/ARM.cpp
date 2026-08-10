@@ -2254,21 +2254,21 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
         BuiltinID == clang::ARM::BI__builtin_arm_ldaex) &&
        getContext().getTypeSize(E->getType()) == 64) ||
       BuiltinID == clang::ARM::BI__ldrexd) {
+    Value *LdPtr = EmitScalarExpr(E->getArg(0));
     Function *F;
 
     switch (BuiltinID) {
     default: llvm_unreachable("unexpected builtin");
     case clang::ARM::BI__builtin_arm_ldaex:
-      F = CGM.getIntrinsic(Intrinsic::arm_ldaexd);
+      F = CGM.getIntrinsic(Intrinsic::arm_ldaexd, LdPtr->getType());
       break;
     case clang::ARM::BI__builtin_arm_ldrexd:
     case clang::ARM::BI__builtin_arm_ldrex:
     case clang::ARM::BI__ldrexd:
-      F = CGM.getIntrinsic(Intrinsic::arm_ldrexd);
+      F = CGM.getIntrinsic(Intrinsic::arm_ldrexd, LdPtr->getType());
       break;
     }
 
-    Value *LdPtr = EmitScalarExpr(E->getArg(0));
     Value *Val = Builder.CreateCall(F, LdPtr, "ldrexd");
 
     Value *Val0 = Builder.CreateExtractValue(Val, 1);
@@ -2313,21 +2313,24 @@ Value *CodeGenFunction::EmitARMBuiltinExpr(unsigned BuiltinID,
       ((BuiltinID == clang::ARM::BI__builtin_arm_stlex ||
         BuiltinID == clang::ARM::BI__builtin_arm_strex) &&
        getContext().getTypeSize(E->getArg(0)->getType()) == 64)) {
-    Function *F = CGM.getIntrinsic(
-        BuiltinID == clang::ARM::BI__builtin_arm_stlex ? Intrinsic::arm_stlexd
-                                                       : Intrinsic::arm_strexd);
     llvm::Type *STy = llvm::StructType::get(Int32Ty, Int32Ty);
 
     Address Tmp = CreateMemTempWithoutCast(E->getArg(0)->getType());
     Value *Val = EmitScalarExpr(E->getArg(0));
     Builder.CreateStore(Val, Tmp);
 
+    Value *StPtr = EmitScalarExpr(E->getArg(1));
+    Function *F = CGM.getIntrinsic(
+        BuiltinID == clang::ARM::BI__builtin_arm_stlex ? Intrinsic::arm_stlexd
+                                                       : Intrinsic::arm_strexd,
+        StPtr->getType());
+
     Address LdPtr = Tmp.withElementType(STy);
     Val = Builder.CreateLoad(LdPtr);
 
     Value *Arg0 = Builder.CreateExtractValue(Val, 0);
     Value *Arg1 = Builder.CreateExtractValue(Val, 1);
-    Value *StPtr = EmitScalarExpr(E->getArg(1));
+
     return Builder.CreateCall(F, {Arg0, Arg1, StPtr}, "strexd");
   }
 

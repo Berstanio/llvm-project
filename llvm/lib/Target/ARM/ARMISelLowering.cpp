@@ -21791,8 +21791,8 @@ Value *ARMTargetLowering::emitLoadLinked(IRBuilderBase &Builder, Type *ValueTy,
     Intrinsic::ID Int =
         IsAcquire ? Intrinsic::arm_ldaexd : Intrinsic::arm_ldrexd;
 
-    Value *LoHi =
-        Builder.CreateIntrinsic(Int, Addr, /*FMFSource=*/nullptr, "lohi");
+    Value *LoHi = Builder.CreateIntrinsic(Int, {Addr->getType()}, Addr,
+                                          /*FMFSource=*/nullptr, "lohi");
 
     Value *Lo = Builder.CreateExtractValue(LoHi, 0, "lo");
     Value *Hi = Builder.CreateExtractValue(LoHi, 1, "hi");
@@ -21838,7 +21838,7 @@ Value *ARMTargetLowering::emitStoreConditional(IRBuilderBase &Builder,
     Value *Hi = Builder.CreateTrunc(Builder.CreateLShr(Val, 32), Int32Ty, "hi");
     if (!Subtarget->isLittle())
       std::swap(Lo, Hi);
-    return Builder.CreateIntrinsic(Int, {Lo, Hi, Addr});
+    return Builder.CreateIntrinsic(Int, {Addr->getType()}, {Lo, Hi, Addr});
   }
 
   Intrinsic::ID Int = IsRelease ? Intrinsic::arm_stlex : Intrinsic::arm_strex;

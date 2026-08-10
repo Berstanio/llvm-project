@@ -686,13 +686,21 @@ bool FastISel::selectStackmap(const CallInst *I) {
         ScratchRegs[i], /*isDef=*/true, /*isImp=*/true, /*isKill=*/false,
         /*isDead=*/false, /*isUndef=*/false, /*isEarlyClobber=*/true));
 
+  auto EmitCallFramePseudo = [&](unsigned Opcode) {
+    auto MIB = BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, TII.get(Opcode));
+    for (const MCOperandInfo &OpInfo : MIB.getInstr()->getDesc().operands()) {
+      if (OpInfo.isPredicate())
+        break;
+      MIB.addImm(0);
+    }
+
+    // Operands past the frame sizes come from the target, e.g. ARM's predicate,
+    // and only the target can build them.
+    addDefaultOperands(MIB);
+  };
+
   // Issue CALLSEQ_START
-  unsigned AdjStackDown = TII.getCallFrameSetupOpcode();
-  auto Builder =
-      BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, TII.get(AdjStackDown));
-  const MCInstrDesc &MCID = Builder.getInstr()->getDesc();
-  for (unsigned I = 0, E = MCID.getNumOperands(); I < E; ++I)
-    Builder.addImm(0);
+  EmitCallFramePseudo(TII.getCallFrameSetupOpcode());
 
   // Issue STACKMAP.
   MachineInstrBuilder MIB = BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD,
@@ -701,10 +709,7 @@ bool FastISel::selectStackmap(const CallInst *I) {
     MIB.add(MO);
 
   // Issue CALLSEQ_END
-  unsigned AdjStackUp = TII.getCallFrameDestroyOpcode();
-  BuildMI(*FuncInfo.MBB, FuncInfo.InsertPt, MIMD, TII.get(AdjStackUp))
-      .addImm(0)
-      .addImm(0);
+  EmitCallFramePseudo(TII.getCallFrameDestroyOpcode());
 
   // Inform the Frame Information that we have a stackmap in this function.
   FuncInfo.MF->getFrameInfo().setHasStackMap();

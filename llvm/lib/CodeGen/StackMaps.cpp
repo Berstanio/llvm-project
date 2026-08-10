@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCObjectFileInfo.h"
@@ -28,6 +29,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Target/TargetMachine.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -594,11 +596,21 @@ void StackMaps::emitStackmapHeader(MCStreamer &OS) {
 void StackMaps::emitFunctionFrameRecords(MCStreamer &OS) {
   // Function Frame records.
   LLVM_DEBUG(dbgs() << WSMP << "functions:\n");
+  const unsigned PtrSize = AP.TM.getPointerSize(0);
+  const bool IsLittleEndian = AP.MAI.isLittleEndian();
+
   for (auto const &FR : FnInfos) {
     LLVM_DEBUG(dbgs() << WSMP << "function addr: " << FR.first
                       << " frame size: " << FR.second.StackSize
                       << " callsite count: " << FR.second.RecordCount << '\n');
-    OS.emitSymbolValue(FR.first, 8);
+    // The record reserves 64 bits for the function address, so zero fill on
+    // lower-size pointer sizes
+    assert(PtrSize <= 8 && "Unsupported pointer size");
+    if (PtrSize < 8 && !IsLittleEndian)
+      OS.emitZeros(8 - PtrSize);
+    OS.emitSymbolValue(FR.first, PtrSize);
+    if (PtrSize < 8 && IsLittleEndian)
+      OS.emitZeros(8 - PtrSize);
     OS.emitIntValue(FR.second.StackSize, 8);
     OS.emitIntValue(FR.second.RecordCount, 8);
   }

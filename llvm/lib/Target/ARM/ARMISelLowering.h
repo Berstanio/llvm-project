@@ -129,6 +129,8 @@ class VectorType;
     EmitInstrWithCustomInserter(MachineInstr &MI,
                                 MachineBasicBlock *MBB) const override;
 
+    const MCPhysReg *getScratchRegisters(CallingConv::ID CC) const override;
+
     void AdjustInstrPostInstrSelection(MachineInstr &MI,
                                        SDNode *Node) const override;
 

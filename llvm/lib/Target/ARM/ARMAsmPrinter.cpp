@@ -24,6 +24,7 @@
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/CodeGen/MachineModuleInfoImpls.h"
+#include "llvm/CodeGen/StackMaps.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Mangler.h"
@@ -43,6 +44,7 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
@@ -1969,6 +1971,208 @@ void ARMAsmPrinter::LowerKCFI_CHECK(const MachineInstr &MI) {
   }
 }
 
+void ARMAsmPrinter::LowerSTACKMAP(const MachineInstr &MI) {
+  const ARMBaseInstrInfo *TII = MF->getSubtarget<ARMSubtarget>().getInstrInfo();
+  const unsigned NOPBytes = TII->getNopBytes();
+  unsigned NumNOPBytes = StackMapOpers(&MI).getNumPatchBytes();
+
+  auto &Ctx = OutStreamer->getContext();
+  MCSymbol *MILabel = Ctx.createTempSymbol();
+  OutStreamer->emitLabel(MILabel);
+  SM.recordStackMap(*MILabel, MI);
+  assert(NumNOPBytes % NOPBytes == 0 &&
+         "Invalid number of NOP bytes requested!");
+
+  // Scan ahead to trim the shadow.
+  unsigned ShadowBytes = 0;
+  const MachineBasicBlock &MBB = *MI.getParent();
+  MachineBasicBlock::const_iterator MII(MI);
+  ++MII;
+  while (ShadowBytes < NumNOPBytes) {
+    if (MII == MBB.end() ||
+        // Patchpoint provides its own patch region
+        MII->getOpcode() == TargetOpcode::PATCHPOINT ||
+        // Anything whose reported size is only an upper bound can't be trusted
+        ARMBaseInstrInfo::hasUpperBoundSizeEstimate(*MII))
+      break;
+
+    ShadowBytes += TII->getInstSizeInBytes(*MII);
+    if (MII->isCall())
+      break;
+    ++MII;
+  }
+
+  if (ShadowBytes < NumNOPBytes)
+    emitNops(divideCeil(NumNOPBytes - ShadowBytes, NOPBytes));
+}
+
+void ARMAsmPrinter::LowerPATCHPOINT(const MachineInstr &MI) {
+  const ARMSubtarget &STI = MF->getSubtarget<ARMSubtarget>();
+  const unsigned NOPBytes = STI.getInstrInfo()->getNopBytes();
+
+  auto &Ctx = OutStreamer->getContext();
+  MCSymbol *MILabel = Ctx.createTempSymbol();
+  OutStreamer->emitLabel(MILabel);
+  SM.recordPatchPoint(*MILabel, MI);
+
+  PatchPointOpers Opers(&MI);
+  unsigned EncodedBytes = 0;
+  const MachineOperand &CalleeMO = Opers.getCallTarget();
+
+  // Check for null target. If target is non-null (i.e. is non-zero or is
+  // symbolic) then emit a call.
+  if (!(CalleeMO.isImm() && !CalleeMO.getImm())) {
+    switch (CalleeMO.getType()) {
+    default:
+      /// FIXME: Add a verifier check for bad callee types.
+      llvm_unreachable("Unrecognized callee operand type.");
+    case MachineOperand::MO_ExternalSymbol:
+    case MachineOperand::MO_GlobalAddress: {
+      MCOperand CalleeMCOp;
+      if (!lowerOperand(CalleeMO, CalleeMCOp))
+        llvm_unreachable("Failed to lower patchpoint call target.");
+      // Both the ARM and the Thumb BL are 4 bytes wide.
+      EncodedBytes = 4;
+      if (STI.isThumb()) {
+        EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::tBL)
+                                         // Predicate comes first here.
+                                         .addImm(ARMCC::AL)
+                                         .addReg(0)
+                                         .addOperand(CalleeMCOp));
+      } else {
+        EmitToStreamer(*OutStreamer,
+                       MCInstBuilder(ARM::BL).addOperand(CalleeMCOp));
+      }
+      break;
+    }
+    case MachineOperand::MO_Immediate: {
+      // Materialize the target address with movw/movt and call it indirectly.
+      if (STI.isThumb() ? !STI.hasV8MBaselineOps() : !STI.hasV6T2Ops())
+        report_fatal_error("Lowering patchpoint with an immediate call target "
+                           "requires movw/movt",
+                           /*GenCrashDiag=*/false);
+
+      if (!STI.hasV5TOps())
+        report_fatal_error(
+            "Lowering patchpoint with an immediate call target requires blx",
+            /*GenCrashDiag=*/false);
+
+      // FIXME: Support SLS hardening of the emitted BLX and remove this.
+      if (STI.hardenSlsBlr())
+        report_fatal_error("Lowering patchpoint with an immediate call target "
+                           "is not implemented with SLS BLR hardening",
+                           /*GenCrashDiag=*/false);
+
+      // We can end here via zero extension in FastISel or sign extension in
+      // SelectionDAG.
+      assert((isInt<32>(CalleeMO.getImm()) || isUInt<32>(CalleeMO.getImm())) &&
+             "Unsupported patchpoint call target!");
+      uint32_t CallTarget = static_cast<uint32_t>(CalleeMO.getImm());
+      Register ScratchReg = MI.getOperand(Opers.getNextScratchIdx()).getReg();
+
+      // movw and movt are 4 bytes wide in both modes, while the BLX is 4 bytes
+      // in ARM mode and 2 bytes in Thumb mode.
+      EncodedBytes = STI.isThumb() ? 10 : 12;
+
+      EmitToStreamer(*OutStreamer,
+                     MCInstBuilder(STI.isThumb() ? ARM::t2MOVi16 : ARM::MOVi16)
+                         .addReg(ScratchReg)
+                         .addImm(CallTarget & 0xFFFF)
+                         // Predicate.
+                         .addImm(ARMCC::AL)
+                         .addReg(0));
+      EmitToStreamer(*OutStreamer, MCInstBuilder(STI.isThumb() ? ARM::t2MOVTi16
+                                                               : ARM::MOVTi16)
+                                       .addReg(ScratchReg)
+                                       .addReg(ScratchReg)
+                                       .addImm((CallTarget >> 16) & 0xFFFF)
+                                       // Predicate.
+                                       .addImm(ARMCC::AL)
+                                       .addReg(0));
+      if (STI.isThumb()) {
+        EmitToStreamer(*OutStreamer, MCInstBuilder(ARM::tBLXr)
+                                         // Predicate comes first here.
+                                         .addImm(ARMCC::AL)
+                                         .addReg(0)
+                                         .addReg(ScratchReg));
+      } else {
+        EmitToStreamer(*OutStreamer,
+                       MCInstBuilder(ARM::BLX).addReg(ScratchReg));
+      }
+      break;
+    }
+    }
+  }
+
+  // Emit padding.
+  unsigned NumBytes = Opers.getNumPatchBytes();
+  assert(NumBytes >= EncodedBytes &&
+         "Patchpoint can't request size less than the length of a call.");
+  assert((NumBytes - EncodedBytes) % NOPBytes == 0 &&
+         "Invalid number of NOP bytes requested!");
+  emitNops((NumBytes - EncodedBytes) / NOPBytes);
+}
+
+void ARMAsmPrinter::LowerSTATEPOINT(const MachineInstr &MI) {
+  const ARMSubtarget &STI = MF->getSubtarget<ARMSubtarget>();
+  const unsigned NOPBytes = STI.getInstrInfo()->getNopBytes();
+
+  StatepointOpers SOpers(&MI);
+  if (unsigned PatchBytes = SOpers.getNumPatchBytes()) {
+    assert(PatchBytes % NOPBytes == 0 &&
+           "Invalid number of NOP bytes requested!");
+    emitNops(PatchBytes / NOPBytes);
+  } else {
+    // Lower call target and choose correct opcode
+    const MachineOperand &CallTarget = SOpers.getCallTarget();
+    MCOperand CallTargetMCOp;
+    unsigned CallOpcode;
+    switch (CallTarget.getType()) {
+    case MachineOperand::MO_GlobalAddress:
+    case MachineOperand::MO_ExternalSymbol:
+      if (!lowerOperand(CallTarget, CallTargetMCOp))
+        llvm_unreachable("Failed to lower statepoint call target.");
+      CallOpcode = STI.isThumb() ? ARM::tBL : ARM::BL;
+      break;
+    case MachineOperand::MO_Immediate:
+      CallTargetMCOp = MCOperand::createImm(CallTarget.getImm());
+      CallOpcode = STI.isThumb() ? ARM::tBL : ARM::BL;
+      break;
+    case MachineOperand::MO_Register:
+      if (!STI.hasV5TOps())
+        report_fatal_error(
+            "Lowering statepoint with an indirect call target requires blx",
+            /*GenCrashDiag=*/false);
+      if (STI.hardenSlsBlr())
+        report_fatal_error("Lowering statepoint with an indirect call target "
+                           "is not implemented with SLS BLR hardening",
+                           /*GenCrashDiag=*/false);
+      CallTargetMCOp = MCOperand::createReg(CallTarget.getReg());
+      CallOpcode = STI.isThumb() ? ARM::tBLXr : ARM::BLX;
+      break;
+    default:
+      llvm_unreachable("Unsupported operand type in statepoint call target");
+      break;
+    }
+
+    if (STI.isThumb()) {
+      EmitToStreamer(*OutStreamer, MCInstBuilder(CallOpcode)
+                                       // Predicate comes first here.
+                                       .addImm(ARMCC::AL)
+                                       .addReg(0)
+                                       .addOperand(CallTargetMCOp));
+    } else {
+      EmitToStreamer(*OutStreamer,
+                     MCInstBuilder(CallOpcode).addOperand(CallTargetMCOp));
+    }
+  }
+
+  auto &Ctx = OutStreamer->getContext();
+  MCSymbol *MILabel = Ctx.createTempSymbol();
+  OutStreamer->emitLabel(MILabel);
+  SM.recordStatepoint(*MILabel, MI);
+}
+
 void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
   ARM_MC::verifyInstructionPredicates(MI->getOpcode(),
                                       getSubtargetInfo().getFeatureBits());
@@ -2869,6 +3073,12 @@ void ARMAsmPrinter::emitInstruction(const MachineInstr *MI) {
   case ARM::PATCHABLE_TAIL_CALL:
     LowerPATCHABLE_TAIL_CALL(*MI);
     return;
+  case ARM::STACKMAP:
+    return LowerSTACKMAP(*MI);
+  case ARM::PATCHPOINT:
+    return LowerPATCHPOINT(*MI);
+  case ARM::STATEPOINT:
+    return LowerSTATEPOINT(*MI);
   case ARM::SpeculationBarrierISBDSBEndBB: {
     // Print DSB SYS + ISB
     MCInst TmpInstDSB;

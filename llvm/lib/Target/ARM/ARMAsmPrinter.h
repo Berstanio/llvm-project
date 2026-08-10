@@ -124,6 +124,14 @@ public:
   // KCFI check lowering
   void LowerKCFI_CHECK(const MachineInstr &MI);
 
+  //===------------------------------------------------------------------===//
+  // Stack maps
+  //===------------------------------------------------------------------===//
+public:
+  void LowerSTACKMAP(const MachineInstr &MI);
+  void LowerPATCHPOINT(const MachineInstr &MI);
+  void LowerSTATEPOINT(const MachineInstr &MI);
+
 private:
   void EmitSled(const MachineInstr &MI, SledKind Kind);
 

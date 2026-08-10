@@ -347,7 +347,8 @@ bool ARMFrameLowering::hasFPImpl(const MachineFunction &MF) const {
 
   // Frame pointer required for use within this function.
   return (RegInfo->hasStackRealignment(MF) || MFI.hasVarSizedObjects() ||
-          MFI.isFrameAddressTaken());
+          MFI.isFrameAddressTaken() || MFI.hasStackMap() ||
+          MFI.hasPatchPoint());
 }
 
 /// isFPReserved - Return true if the frame pointer register should be
@@ -2584,6 +2585,15 @@ static unsigned estimateRSStackSizeLimit(MachineFunction &MF,
         continue;
       if (MI.getOpcode() == TargetOpcode::LOCAL_ESCAPE)
         continue;
+
+      // Stackmap, patchpoint and statepoint record their frame reference in the
+      // stackmap section, so whatever they lower to never addresses the stack
+      // frame
+      if (MI.getOpcode() == TargetOpcode::STACKMAP ||
+          MI.getOpcode() == TargetOpcode::PATCHPOINT ||
+          MI.getOpcode() == TargetOpcode::STATEPOINT)
+        continue;
+
       for (unsigned i = 0, e = MI.getNumOperands(); i != e; ++i) {
         if (!MI.getOperand(i).isFI())
           continue;

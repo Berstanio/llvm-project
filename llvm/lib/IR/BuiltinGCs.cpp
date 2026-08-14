@@ -85,6 +85,32 @@ public:
   }
 };
 
+/// A GC strategy for the LLVM backend of the Graal compiler. The strategy
+/// is similar to the statepoint-example GC, but adds support for a second
+/// type of pointer in addrspace(2). Live pointers in this address space
+/// are inserted as deopt parameters as well as GC parameters in the
+/// statepoint intrinsic. As a consequence, this GC doesn't support regular
+/// deopt parameters.
+class CompressedPointerGC : public GCStrategy {
+public:
+  CompressedPointerGC() {
+    UseStatepoints = true;
+    UseRS4GC = true;
+    // These options are all gc.root specific, we specify them so that the
+    // gc.root lowering code doesn't run.
+    NeededSafePoints = false;
+    UsesMetadata = false;
+  }
+
+  std::optional<bool> isGCManagedPointer(const Type *Ty) const override {
+    // Method is only valid on pointer typed values.
+    const PointerType *PT = cast<PointerType>(Ty);
+    // addrspace(1) represents absolute tracked pointers, and addrspace(2)
+    // represents heap base-relative pointers.
+    return (1 == PT->getAddressSpace() || 2 == PT->getAddressSpace());
+  }
+};
+
 /// A GCStrategy for the CoreCLR Runtime. The strategy is similar to
 /// Statepoint-example GC, but differs from it in certain aspects, such as:
 /// 1) Base-pointers need not be explicitly tracked and reported for
@@ -126,6 +152,7 @@ static GCRegistry::Add<ShadowStackGC>
     C("shadow-stack", "Very portable GC for uncooperative code generators");
 static GCRegistry::Add<StatepointGC> D("statepoint-example",
                                        "an example strategy for statepoint");
+static GCRegistry::Add<CompressedPointerGC> F("compressed-pointer", "GC supporting compressed pointers");
 static GCRegistry::Add<CoreCLRGC> E("coreclr", "CoreCLR-compatible GC");
 
 // Provide hook to ensure the containing library is fully loaded.

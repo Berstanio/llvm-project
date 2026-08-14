@@ -874,6 +874,16 @@ public:
                          std::optional<ArrayRef<Use>> DeoptArgs,
                          ArrayRef<Value *> GCArgs, const Twine &Name = "");
 
+  /// Create a call to the experimental.gc.statepoint intrinsic to
+  /// start a new statepoint sequence.
+  CallInst *CreateGCStatepointCall(uint64_t ID, uint32_t NumPatchBytes,
+                                   FunctionCallee ActualCallee, uint32_t Flags,
+                                   ArrayRef<Value *> CallArgs,
+                                   std::optional<ArrayRef<Use>> TransitionArgs,
+                                   std::optional<ArrayRef<Value *>> DeoptArgs,
+                                   ArrayRef<Value *> GCArgs,
+                                   const Twine &Name = "");
+
   /// Conveninence function for the common case when CallArgs are filled
   /// in using ArrayRef(CS.arg_begin(), CS.arg_end()); Use needs to be
   /// .get()'ed to get the Value pointer.
@@ -899,6 +909,15 @@ public:
       BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
       ArrayRef<Value *> InvokeArgs, std::optional<ArrayRef<Use>> TransitionArgs,
       std::optional<ArrayRef<Use>> DeoptArgs, ArrayRef<Value *> GCArgs,
+      const Twine &Name = "");
+
+  /// Create an invoke to the experimental.gc.statepoint intrinsic to
+  /// start a new statepoint sequence.
+  InvokeInst *CreateGCStatepointInvoke(
+      uint64_t ID, uint32_t NumPatchBytes, FunctionCallee ActualInvokee,
+      BasicBlock *NormalDest, BasicBlock *UnwindDest, uint32_t Flags,
+      ArrayRef<Value *> InvokeArgs, std::optional<ArrayRef<Use>> TransitionArgs,
+      std::optional<ArrayRef<Value *>> DeoptArgs, ArrayRef<Value *> GCArgs,
       const Twine &Name = "");
 
   // Convenience function for the common case when CallArgs are filled in using

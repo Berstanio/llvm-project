@@ -1643,6 +1643,28 @@ static StringRef getDeoptLowering(CallBase *Call) {
   return "live-through";
 }
 
+static bool supportsCompressedPointers(Function &F) {
+  return F.hasGC() && F.getGC() == "compressed-pointer";
+}
+
+static bool supportsCompressedPointers(CallBase *Call) {
+  return supportsCompressedPointers(*Call->getFunction());
+}
+
+static void getCompressedGCArgs(SmallVectorImpl<Value *> &CompressedArgs,
+                                ArrayRef<Value *> GCArgs) {
+  for (Value *LiveVal : GCArgs) {
+    Type *Ty = LiveVal->getType();
+    if (auto *PT = dyn_cast<PointerType>(Ty)) {
+      if (PT->getAddressSpace() == 2)
+        CompressedArgs.push_back(LiveVal);
+    } else if (auto *VT = dyn_cast<VectorType>(Ty)) {
+      if (VT->getScalarType()->getPointerAddressSpace() == 2)
+        CompressedArgs.push_back(LiveVal);
+    }
+  }
+}
+
 static void
 makeStatepointExplicitImpl(CallBase *Call, /* to replace */
                            const SmallVectorImpl<Value *> &BasePtrs,
@@ -1830,9 +1852,23 @@ makeStatepointExplicitImpl(CallBase *Call, /* to replace */
   // Create the statepoint given all the arguments
   GCStatepointInst *Token = nullptr;
   if (auto *CI = dyn_cast<CallInst>(Call)) {
-    CallInst *SPCall = Builder.CreateGCStatepointCall(
-        StatepointID, NumPatchBytes, CallTarget, Flags, CallArgs,
-        TransitionArgs, DeoptArgs, GCLive, "safepoint_token");
+    CallInst *SPCall;
+    if (supportsCompressedPointers(Call)) {
+      assert((!DeoptArgs || DeoptArgs->empty()) &&
+             "Deopt args are not supported when using compressed pointers");
+      SmallVector<Value *, 8> CompressedArgsVector;
+      getCompressedGCArgs(CompressedArgsVector, GCLive);
+      std::optional<ArrayRef<Value *>> CompressedArgs =
+          ArrayRef<Value *>(CompressedArgsVector);
+
+      SPCall = Builder.CreateGCStatepointCall(
+          StatepointID, NumPatchBytes, CallTarget, Flags, CallArgs,
+          TransitionArgs, CompressedArgs, GCLive, "safepoint_token");
+    } else {
+      SPCall = Builder.CreateGCStatepointCall(
+          StatepointID, NumPatchBytes, CallTarget, Flags, CallArgs,
+          TransitionArgs, DeoptArgs, GCLive, "safepoint_token");
+    }
 
     SPCall->setTailCallKind(CI->getTailCallKind());
     SPCall->setCallingConv(CI->getCallingConv());
@@ -1855,10 +1891,25 @@ makeStatepointExplicitImpl(CallBase *Call, /* to replace */
     // Insert the new invoke into the old block.  We'll remove the old one in a
     // moment at which point this will become the new terminator for the
     // original block.
-    InvokeInst *SPInvoke = Builder.CreateGCStatepointInvoke(
-        StatepointID, NumPatchBytes, CallTarget, II->getNormalDest(),
-        II->getUnwindDest(), Flags, CallArgs, TransitionArgs, DeoptArgs,
-        GCLive, "statepoint_token");
+    InvokeInst *SPInvoke;
+    if (supportsCompressedPointers(Call)) {
+      assert((!DeoptArgs || DeoptArgs->empty()) &&
+             "Deopt args are not supported when using compressed pointers");
+      SmallVector<Value *, 8> CompressedArgsVector;
+      getCompressedGCArgs(CompressedArgsVector, GCLive);
+      std::optional<ArrayRef<Value *>> CompressedArgs =
+          ArrayRef<Value *>(CompressedArgsVector);
+
+      SPInvoke = Builder.CreateGCStatepointInvoke(
+          StatepointID, NumPatchBytes, CallTarget, II->getNormalDest(),
+          II->getUnwindDest(), Flags, CallArgs, TransitionArgs, CompressedArgs,
+          GCLive, "statepoint_token");
+    } else {
+      SPInvoke = Builder.CreateGCStatepointInvoke(
+          StatepointID, NumPatchBytes, CallTarget, II->getNormalDest(),
+          II->getUnwindDest(), Flags, CallArgs, TransitionArgs, DeoptArgs,
+          GCLive, "statepoint_token");
+    }
 
     SPInvoke->setCallingConv(II->getCallingConv());
 
@@ -2681,8 +2732,18 @@ static bool insertParsePoints(Function &F, DominatorTree &DT,
   // Insert a dummy call with all of the deopt operands we'll need for the
   // actual safepoint insertion as arguments.  This ensures reference operands
   // in the deopt argument list are considered live through the safepoint (and
-  // thus makes sure they get relocated.)
+  // thus makes sure they get relocated.) When using compressed pointers,
+  // addrspace(2) values are later encoded in the deopt argument section of the
+  // statepoint so the Native Image stack-map parser can distinguish them from
+  // uncompressed references. Those deopt entries are derived from the GC live
+  // set rather than from frontend deopt operands, so no holder is needed here.
   for (CallBase *Call : ToUpdate) {
+    if (supportsCompressedPointers(F)) {
+      assert(GetDeoptBundleOperands(Call).empty() &&
+             "Deopt args are not supported when using compressed pointers");
+      continue;
+    }
+
     SmallVector<Value *, 64> DeoptValues;
 
     for (Value *Arg : GetDeoptBundleOperands(Call)) {

@@ -400,6 +400,8 @@ public:
     return isTargetMachO() ? (ReserveR9 || !HasV6Ops) : ReserveR9;
   }
 
+  bool isR10Reserved() const { return ReserveR10; }
+
   MCPhysReg getFramePointerReg() const {
     if (isTargetDarwin() ||
         (!isTargetWindows() && isThumb() && !createAAPCSFrameChain()))

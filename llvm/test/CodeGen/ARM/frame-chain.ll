@@ -4,8 +4,8 @@
 ; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=non-leaf -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=FP-AAPCS,LEAF-NOFP-AAPCS
 ; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=none | FileCheck %s --check-prefixes=NOFP,LEAF-NOFP
 ; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=none -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=NOFP-AAPCS,LEAF-NOFP-AAPCS
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=reserved | FileCheck %s --check-prefixes=NOFP,LEAF-NOFP
-; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=reserved -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=NOFP-AAPCS,LEAF-NOFP-AAPCS
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=reserved | FileCheck %s --check-prefixes=NOFP-RESERVED,LEAF-NOFP
+; RUN: llc -mtriple arm-arm-none-eabi -filetype asm -o - %s -frame-pointer=reserved -mattr=+aapcs-frame-chain | FileCheck %s --check-prefixes=NOFP-AAPCS-RESERVED,LEAF-NOFP-AAPCS
 
 define dso_local noundef i32 @leaf(i32 noundef %0) {
 ; LEAF-FP-LABEL: leaf:
@@ -112,6 +112,32 @@ define dso_local noundef i32 @non_leaf(i32 noundef %0) {
 ; NOFP-AAPCS-NEXT:    add sp, sp, #8
 ; NOFP-AAPCS-NEXT:    pop {r11, lr}
 ; NOFP-AAPCS-NEXT:    mov pc, lr
+;
+; NOFP-RESERVED-LABEL: non_leaf:
+; NOFP-RESERVED:       @ %bb.0:
+; NOFP-RESERVED-NEXT:    .save {r10, lr}
+; NOFP-RESERVED-NEXT:    push {r10, lr}
+; NOFP-RESERVED-NEXT:    .pad #8
+; NOFP-RESERVED-NEXT:    sub sp, sp, #8
+; NOFP-RESERVED-NEXT:    str r0, [sp, #4]
+; NOFP-RESERVED-NEXT:    bl leaf
+; NOFP-RESERVED-NEXT:    add r0, r0, #1
+; NOFP-RESERVED-NEXT:    add sp, sp, #8
+; NOFP-RESERVED-NEXT:    pop {r10, lr}
+; NOFP-RESERVED-NEXT:    mov pc, lr
+;
+; NOFP-AAPCS-RESERVED-LABEL: non_leaf:
+; NOFP-AAPCS-RESERVED:       @ %bb.0:
+; NOFP-AAPCS-RESERVED-NEXT:    .save {r10, lr}
+; NOFP-AAPCS-RESERVED-NEXT:    push {r10, lr}
+; NOFP-AAPCS-RESERVED-NEXT:    .pad #8
+; NOFP-AAPCS-RESERVED-NEXT:    sub sp, sp, #8
+; NOFP-AAPCS-RESERVED-NEXT:    str r0, [sp, #4]
+; NOFP-AAPCS-RESERVED-NEXT:    bl leaf
+; NOFP-AAPCS-RESERVED-NEXT:    add r0, r0, #1
+; NOFP-AAPCS-RESERVED-NEXT:    add sp, sp, #8
+; NOFP-AAPCS-RESERVED-NEXT:    pop {r10, lr}
+; NOFP-AAPCS-RESERVED-NEXT:    mov pc, lr
   %2 = alloca i32, align 4
   store i32 %0, ptr %2, align 4
   %3 = load i32, ptr %2, align 4

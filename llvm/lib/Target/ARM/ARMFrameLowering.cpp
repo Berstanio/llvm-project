@@ -2901,6 +2901,9 @@ void ARMFrameLowering::determineCalleeSaves(MachineFunction &MF,
         break;
       }
     } else {
+      if (MRI.isReserved(Reg))
+        continue;
+
       if (PushPopSplit != ARMSubtarget::SplitR7) {
         UnspilledCS1GPRs.push_back(Reg);
         continue;

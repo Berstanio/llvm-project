@@ -518,6 +518,11 @@ def FeatureReserveR9      : SubtargetFeature<"reserve-r9", "ReserveR9", "true",
                                              "Reserve R9, making it unavailable"
                                              " as GPR">;
 
+// True if R10 is not available as a general purpose register.
+def FeatureReserveR10     : SubtargetFeature<"reserve-r10", "ReserveR10", "true",
+                                             "Reserve R10, making it "
+                                             "unavailable as GPR">;
+
 // True if MOVT / MOVW pairs are not used for materialization of
 // 32-bit imms (including global addresses).
 def FeatureNoMovt         : SubtargetFeature<"no-movt", "NoMovt", "true",

@@ -241,6 +241,8 @@ getReservedRegs(const MachineFunction &MF) const {
   // Some targets reserve R9.
   if (STI.isR9Reserved())
     markSuperRegs(Reserved, ARM::R9);
+  if (STI.isR10Reserved())
+    markSuperRegs(Reserved, ARM::R10);
   // Reserve D16-D31 if the subtarget doesn't support them.
   if (!STI.hasD32()) {
     static_assert(ARM::D31 == ARM::D16 + 15, "Register list not consecutive!");
@@ -344,7 +346,8 @@ ARMBaseRegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
   case ARM::GPRRegClassID: {
     bool HasFP = MF.getFrameInfo().isMaxCallFrameSizeComputed()
                  ? TFI->hasFP(MF) : true;
-    return 10 - HasFP - (STI.isR9Reserved() ? 1 : 0);
+    return 10 - HasFP - (STI.isR9Reserved() ? 1 : 0) -
+           (STI.isR10Reserved() ? 1 : 0);
   }
   case ARM::SPRRegClassID:  // Currently not used as 'rep' register class.
   case ARM::DPRRegClassID:

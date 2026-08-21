@@ -36,7 +36,6 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/CodeGen/CallingConvLower.h"
@@ -6012,13 +6011,24 @@ SDValue ARMTargetLowering::LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const {
   return FrameAddr;
 }
 
+#define GET_REGISTER_MATCHER
+#include "ARMGenAsmMatcher.inc"
+
 // FIXME? Maybe this could be a TableGen attribute on some registers and
 // this table could be generated automatically from RegInfo.
 Register ARMTargetLowering::getRegisterByName(const char* RegName, LLT VT,
                                               const MachineFunction &MF) const {
-  return StringSwitch<Register>(RegName)
-      .Case("sp", ARM::SP)
-      .Default(Register());
+  Register Reg = MatchRegisterName(RegName);
+  // llvm.read_register / llvm.write_register intrinsics handled through the
+  // generic SelectionDAG path can only access a register that is not
+  // allocatable: reading one would use an undefined physical register, and its
+  // contents are not meaningful. ARM also reserves registers that are not core
+  // registers (FPSCR, FPSCR_RM, APSR_NZCV, ZR) and has no 32-bit copy for them,
+  // so the name must resolve to a GPR as well.
+  if (!ARM::GPRRegClass.contains(Reg) ||
+      !Subtarget->getRegisterInfo()->getReservedRegs(MF).test(Reg))
+    return Register();
+  return Reg;
 }
 
 // Result is 64 bit value so split into two 32 bit values and return as a
